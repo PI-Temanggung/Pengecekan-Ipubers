@@ -1,0 +1,536 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Pengecekan Penyaluran - Karyawan Tiri</title>
+    <!-- Import Font Inter & Montserrat untuk Tampilan Modern Korporat -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Montserrat:wght@700;800&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg-body: #f1f5f9;
+            --header-bg: #1e293b;
+            --card-bg: #ffffff;
+            --accent-green: #84cc16; /* Hijau modern elegan */
+            --accent-blue: #2563eb;
+            --text-main: #0f172a;
+            --text-muted: #64748b;
+            --border-color: #cbd5e1;
+            --card-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -2px rgba(0, 0, 0, 0.05);
+            --hover-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.08), 0 4px 6px -4px rgba(0, 0, 0, 0.04);
+        }
+
+        * { box-sizing: border-box; transition: all 0.2s ease-in-out; }
+        body { background-color: var(--bg-body); margin: 0; padding: 0; font-family: 'Inter', sans-serif; color: var(--text-main); }
+
+        /* Header Korporat Modern */
+        .main-header {
+            background-color: var(--header-bg);
+            color: #ffffff;
+            padding: 16px 36px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+        }
+
+        .brand-title {
+            font-family: 'Montserrat', sans-serif;
+            font-size: 26px;
+            font-weight: 800;
+            color: var(--accent-green);
+            letter-spacing: 0.5px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .header-subtitle {
+            font-size: 13px;
+            font-weight: 400;
+            color: #94a3b8;
+            margin-top: 2px;
+        }
+
+        .user-profile {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            font-size: 14px;
+            font-weight: 500;
+            color: #cbd5e1;
+        }
+
+        .user-avatar {
+            width: 36px;
+            height: 36px;
+            border-radius: 50%;
+            background-color: var(--accent-blue);
+            color: white;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 700;
+            font-size: 14px;
+        }
+
+        .container { max-width: 1400px; margin: 24px auto; padding: 0 24px; }
+
+        /* Card Input Link */
+        .input-card {
+            background: var(--card-bg);
+            border: 1px solid var(--border-color);
+            border-radius: 12px;
+            padding: 24px;
+            margin-bottom: 24px;
+            box-shadow: var(--card-shadow);
+        }
+
+        .input-card label {
+            font-size: 13px;
+            font-weight: 600;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            display: block;
+            margin-bottom: 10px;
+        }
+
+        textarea {
+            width: 100%;
+            height: 80px;
+            border: 1px solid #cbd5e1;
+            border-radius: 8px;
+            padding: 12px 14px;
+            font-size: 14px;
+            font-family: 'Inter', sans-serif;
+            outline: none;
+            resize: vertical;
+            background: #f8fafc;
+        }
+
+        textarea:focus {
+            border-color: var(--accent-blue);
+            background: #ffffff;
+            box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.15);
+        }
+
+        .input-footer {
+            display: flex;
+            justify-content: flex-end;
+            align-items: center;
+            margin-top: 14px;
+            gap: 16px;
+        }
+
+        .btn-process {
+            background: var(--header-bg);
+            color: #ffffff;
+            font-weight: 600;
+            border: none;
+            padding: 10px 24px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 14px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .btn-process:hover {
+            background: #0f172a;
+            transform: translateY(-1px);
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+        }
+
+        /* Controls Navigasi Berwarna */
+        .nav-controls {
+            display: flex;
+            justify-content: flex-start;
+            align-items: center;
+            margin-bottom: 20px;
+        }
+
+        .btn-nav {
+            padding: 9px 20px;
+            border-radius: 8px;
+            font-weight: 600;
+            font-size: 13px;
+            cursor: pointer;
+            border: none;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.08);
+        }
+
+        /* Tombol Sebelumnya (Slate Gray Netral) */
+        .btn-prev {
+            background-color: #64748b;
+            color: #ffffff;
+        }
+        .btn-prev:hover {
+            background-color: #475569;
+        }
+
+        /* Tombol Lanjutkan (Biru Modern Aksens) */
+        .btn-next {
+            background-color: #2563eb;
+            color: #ffffff;
+        }
+        .btn-next:hover {
+            background-color: #1d4ed8;
+        }
+
+        .page-badge {
+            background: #e2e8f0;
+            color: var(--text-main);
+            padding: 8px 16px;
+            border-radius: 8px;
+            font-weight: 700;
+            font-size: 13px;
+            margin: 0 12px;
+            border: 1px solid #cbd5e1;
+        }
+
+        /* Grid Layout */
+        .grid-3 {
+            display: grid;
+            grid-template-columns: 360px 1fr 1fr;
+            gap: 20px;
+            margin-bottom: 20px;
+        }
+
+        .grid-2 {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+            margin-bottom: 20px;
+        }
+
+        /* Base Card Styling */
+        .card {
+            background: var(--card-bg);
+            border: 1px solid var(--border-color);
+            border-radius: 12px;
+            overflow: hidden;
+            box-shadow: var(--card-shadow);
+        }
+
+        .card:hover { box-shadow: var(--hover-shadow); }
+
+        .card-header {
+            color: #ffffff;
+            padding: 14px 20px;
+            font-weight: 600;
+            font-size: 14px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            letter-spacing: 0.3px;
+        }
+
+        /* HEADER DATA ADMINISTRASI (Biru Royal Utama) */
+        .header-admin { 
+            background: linear-gradient(135deg, #1e3a8a, #2563eb); 
+        }
+
+        /* HEADER KOLOM FOTO (Abu-abu Korporat Elegan) */
+        .header-photo { 
+            background: linear-gradient(135deg, #475569, #334155); 
+        }
+
+        /* DESAIN KHUSUS CARD DATA ADMINISTRASI */
+        .card-admin {
+            background: #f8fafc;
+            border-left: 5px solid #2563eb;
+        }
+
+        .card-body { padding: 20px; }
+
+        /* Detail Data Administrasi */
+        .data-group { margin-bottom: 14px; }
+        .data-group:last-child { margin-bottom: 0; }
+        .data-label { font-size: 11px; font-weight: 700; color: #64748b; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 2px; }
+        .data-value { font-size: 14px; font-weight: 600; color: #1e293b; }
+        .data-value-lg { font-size: 16px; font-weight: 700; color: #1d4ed8; word-break: break-all; }
+
+        .divider { height: 1px; background: #cbd5e1; margin: 14px 0; }
+
+        /* Container Media/Foto */
+        .media-box {
+            background: #f8fafc;
+            border-radius: 8px;
+            border: 1px dashed #cbd5e1;
+            padding: 12px;
+            min-height: 280px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .media-box img {
+            max-width: 100%;
+            max-height: 350px;
+            border-radius: 6px;
+            object-fit: contain;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+        }
+
+        iframe { width: 100%; height: 420px; border: none; border-radius: 8px; }
+
+        .hidden { display: none !important; }
+
+        .spinner {
+            display: inline-block;
+            width: 16px;
+            height: 16px;
+            border: 2px solid rgba(255,255,255,.3);
+            border-radius: 50%;
+            border-top-color: #fff;
+            animation: spin 1s ease-in-out infinite;
+        }
+
+        @keyframes spin { to { transform: rotate(360deg); } }
+    </style>
+</head>
+<body>
+
+    <!-- Header Atas Korporat -->
+    <header class="main-header">
+        <div>
+            <div class="brand-title">Karyawan Tiri</div>
+            <div class="header-subtitle">Pengecekan Ipubers</div>
+        </div>
+        <div class="user-profile">
+            <span>Joko Winarno</span>
+            <div class="user-avatar">JW</div>
+        </div>
+    </header>
+
+    <div class="container">
+
+        <!-- Input Section -->
+        <div class="input-card">
+            <label for="inputLinks">Copy Link di sini (Bisa banyak link sekaligus)</label>
+            <textarea id="inputLinks" placeholder="Tempelkan daftar URL nota iPubers di sini..."></textarea>
+            <div class="input-footer">
+                <span id="statusText" style="font-size: 13px; color: var(--text-muted); font-weight: 500;"></span>
+                <button class="btn-process" onclick="processLinks()">
+                    <span id="btnSpinner" class="spinner hidden"></span>
+                    <span>Tampilkan Pengecekan</span>
+                </button>
+            </div>
+        </div>
+
+        <!-- Pagination Controls -->
+        <div class="nav-controls hidden" id="navBar">
+            <button class="btn-nav btn-prev" onclick="prevItem()">&laquo; Sebelumnya</button>
+            <span class="page-badge" id="pageCounter">1 / 1</span>
+            <button class="btn-nav btn-next" onclick="nextItem()">Lanjutkan &raquo;</button>
+        </div>
+
+        <!-- Grid Baris Pertama -->
+        <div class="grid-3 hidden" id="mainGrid">
+            
+            <!-- Card Data Administrasi -->
+            <div class="card card-admin">
+                <div class="card-header header-admin">Data Administrasi</div>
+                <div class="card-body">
+                    <div class="data-group">
+                        <div class="data-label">No Transaksi</div>
+                        <div class="data-value-lg" id="txtNoTx">-</div>
+                    </div>
+                    <div class="data-group">
+                        <div class="data-label">Nama Kios</div>
+                        <div class="data-value" id="txtNamaKios">-</div>
+                    </div>
+                    <div class="data-group">
+                        <div class="data-label">Kode Kios</div>
+                        <div class="data-value" id="txtKodeKios">-</div>
+                    </div>
+
+                    <div class="divider"></div>
+
+                    <div class="data-group">
+                        <div class="data-label">Nama Petani</div>
+                        <div class="data-value-lg" style="color: #0f172a;" id="txtNamaPetani">-</div>
+                    </div>
+                    <div class="data-group">
+                        <div class="data-label">NIK Petani</div>
+                        <div class="data-value" id="txtNikPetani">-</div>
+                    </div>
+
+                    <div id="perwakilanSection" class="hidden">
+                        <div class="divider"></div>
+                        <div class="data-group">
+                            <div class="data-label">Nama Perwakilan</div>
+                            <div class="data-value" id="txtNamaPerwakilan">-</div>
+                        </div>
+                        <div class="data-group">
+                            <div class="data-label">NIK Perwakilan</div>
+                            <div class="data-value" id="txtNikPerwakilan">-</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- KTP Pembeli -->
+            <div class="card">
+                <div class="card-header header-photo">KTP Pembeli</div>
+                <div class="card-body">
+                    <div class="media-box">
+                        <img id="imgKtp" src="" alt="KTP Pembeli">
+                    </div>
+                </div>
+            </div>
+
+            <!-- Bukti Penyaluran Petani -->
+            <div class="card">
+                <div class="card-header header-photo">Bukti Penyaluran Petani</div>
+                <div class="card-body">
+                    <div class="media-box">
+                        <img id="imgPetani" src="" alt="Bukti Penyaluran">
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Grid Baris Kedua (Dinamis: Hilang Jika Tidak Ada Data) -->
+        <div class="grid-2 hidden" id="secondaryGrid">
+            
+            <!-- KTP Pemilik / Perwakilan -->
+            <div class="card hidden" id="cardKtpPemilik">
+                <div class="card-header header-photo">KTP Pemilik (Perwakilan)</div>
+                <div class="card-body">
+                    <div class="media-box">
+                        <img id="imgKtpPemilik" src="" alt="KTP Pemilik/Perwakilan">
+                    </div>
+                </div>
+            </div>
+
+            <!-- Dokumentasi Lainnya -->
+            <div class="card hidden" id="cardDokLain">
+                <div class="card-header header-photo">Dokumentasi Lain</div>
+                <div class="card-body" id="dokLainContainer">
+                    <!-- Dynamic PDF / Images -->
+                </div>
+            </div>
+
+        </div>
+
+    </div>
+
+    <script>
+        let notaList = [];
+        let currentIndex = 0;
+
+        async function processLinks() {
+            const rawText = document.getElementById('inputLinks').value;
+            const links = rawText.split('\n').map(l => l.trim()).filter(l => l.length > 0);
+
+            if (links.length === 0) return alert('Silakan masukkan link nota terlebih dahulu.');
+
+            const btnSpinner = document.getElementById('btnSpinner');
+            const statusText = document.getElementById('statusText');
+            
+            btnSpinner.classList.remove('hidden');
+            statusText.innerText = 'Memproses nota...';
+            notaList = [];
+
+            for (let url of links) {
+                try {
+                    const res = await fetch(`/api/get-nota?url=${encodeURIComponent(url)}`);
+                    const data = await res.json();
+                    if (data.success) notaList.push(data);
+                } catch (e) {
+                    console.error("Gagal membaca link:", url);
+                }
+            }
+
+            btnSpinner.classList.add('hidden');
+            statusText.innerText = '';
+
+            if (notaList.length > 0) {
+                currentIndex = 0;
+                renderNota();
+                document.getElementById('navBar').classList.remove('hidden');
+                document.getElementById('mainGrid').classList.remove('hidden');
+                document.getElementById('secondaryGrid').classList.remove('hidden');
+            } else {
+                alert('Gagal mengambil data dari link.');
+            }
+        }
+
+        function renderNota() {
+            const data = notaList[currentIndex];
+            document.getElementById('pageCounter').innerText = `${currentIndex + 1} / ${notaList.length}`;
+
+            // 1. Data Teks Administrasi
+            document.getElementById('txtNoTx').innerText = data.admin.noTransaksi;
+            document.getElementById('txtNamaKios').innerText = data.admin.namaKios;
+            document.getElementById('txtKodeKios').innerText = data.admin.kodeKios;
+            document.getElementById('txtNamaPetani').innerText = data.admin.namaPetani;
+            document.getElementById('txtNikPetani').innerText = data.admin.nikPetani;
+
+            // Handle Perwakilan bila ada di data admin
+            const perwakilanSection = document.getElementById('perwakilanSection');
+            if (data.admin.namaPerwakilan || data.admin.nikPerwakilan) {
+                perwakilanSection.classList.remove('hidden');
+                document.getElementById('txtNamaPerwakilan').innerText = data.admin.namaPerwakilan || '-';
+                document.getElementById('txtNikPerwakilan').innerText = data.admin.nikPerwakilan || '-';
+            } else {
+                perwakilanSection.classList.add('hidden');
+            }
+
+            // 2. Foto Utama
+            document.getElementById('imgKtp').src = data.images.ktpPembeli || '';
+            document.getElementById('imgPetani').src = data.images.buktiPenyaluran || '';
+
+            // 3. Dynamic KTP Pemilik / Perwakilan (Hilang jika tidak ada foto)
+            const cardKtpPemilik = document.getElementById('cardKtpPemilik');
+            if (data.images.ktpPerwakilan) {
+                cardKtpPemilik.classList.remove('hidden');
+                document.getElementById('imgKtpPemilik').src = data.images.ktpPerwakilan;
+            } else {
+                cardKtpPemilik.classList.add('hidden');
+            }
+
+            // 4. Dynamic Dokumentasi Lain (Hilang jika tidak ada dokumen/pdf)
+            const cardDokLain = document.getElementById('cardDokLain');
+            const dokContainer = document.getElementById('dokLainContainer');
+            dokContainer.innerHTML = '';
+            let hasDok = false;
+
+            if (data.images.suratKuasaPdf) {
+                hasDok = true;
+                dokContainer.innerHTML += `<iframe src="${data.images.suratKuasaPdf}"></iframe>`;
+            }
+
+            if (data.images.dokLain && data.images.dokLain.length > 0) {
+                hasDok = true;
+                data.images.dokLain.forEach(imgUrl => {
+                    dokContainer.innerHTML += `<div class="media-box" style="margin-top:10px;"><img src="${imgUrl}"></div>`;
+                });
+            }
+
+            if (hasDok) {
+                cardDokLain.classList.remove('hidden');
+            } else {
+                cardDokLain.classList.add('hidden');
+            }
+        }
+
+        function nextItem() {
+            if (currentIndex < notaList.length - 1) {
+                currentIndex++;
+                renderNota();
+            }
+        }
+
+        function prevItem() {
+            if (currentIndex > 0) {
+                currentIndex--;
+                renderNota();
+            }
+        }
+    </script>
+</body>
+</html>
