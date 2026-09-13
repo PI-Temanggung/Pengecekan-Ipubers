@@ -33,13 +33,11 @@ app.get('/api/get-nota', async (req, res) => {
         $('div').each((_, el) => {
             const text = $(el).text().trim();
             if ($(el).css('font-size') === '19px' || text.length > 3 && !text.includes('Nota') && namaKios === '-') {
-                // Cari elemen yang menyerupai nama kios
                 const fontText = $(el).find('font').text().trim();
                 if (fontText) namaKios = fontText;
             }
         });
         if (namaKios === '-') {
-            // Alternatif pencarian teks kios
             $('b font font').each((_, el) => {
                 const t = $(el).text().trim();
                 if (t.includes('MANDIRI') || t.length > 5 && namaKios === '-') namaKios = t;
@@ -75,7 +73,7 @@ app.get('/api/get-nota', async (req, res) => {
             }
         });
 
-        // 5. Kode Transaksi (Biasanya di elemen dengan class f-20 f-bold align-right)
+        // 5. Kode Transaksi & Jenis Penyaluran
         $('.f-20.f-bold.align-right, td.f-20').each((_, el) => {
             const t = $(el).text().trim();
             if (t.includes('\\') || t.includes('/')) {
@@ -85,30 +83,44 @@ app.get('/api/get-nota', async (req, res) => {
             }
         });
 
-        // Kumpulkan semua URL Gambar berdasarkan sumber Firebase atau urutannya
-        const images = {};
+        // 6. Pengumpulan URL Gambar dan Dokumen dari Firebase berdasarkan tipe linknya
+        let ktpPembeli = '';
+        let buktiPenyaluran = '';
+        let tandaTanganPetani = '';
+        let ktpPerwakilan = '';
+        let ktpPemilik = '';
+        let kartuKeluarga = '';
+        let swafoto = '';
+        let suratKuasaPdf = '';
+
         $('img').each((_, img) => {
             let src = $(img).attr('src');
             if (src && src.includes('firebasestorage.googleapis.com')) {
-                if (src.includes('/o/ktp%2F')) images.ktpPembeli = src;
-                if (src.includes('/o/petani_barang%2F')) {
-                    if (!images.buktiPenyaluran) images.buktiPenyaluran = src;
-                    else images.buktiPenyaluranPetani = src;
+                if (src.includes('TANDA_TANGAN_PETANI')) {
+                    tandaTanganPetani = src;
+                } else if (src.includes('/o/ktp%2F')) {
+                    ktpPembeli = src;
+                } else if (src.includes('/o/petani_barang%2F')) {
+                    if (!buktiPenyaluran) buktiPenyaluran = src;
+                } else if (src.includes('/o/ktp_penerima%2F')) {
+                    ktpPemilik = src;
+                } else if (src.includes('/o/dokumen_lain%2F')) {
+                    kartuKeluarga = src;
+                } else if (src.includes('/o/penjualan%2Fktp%2F')) {
+                    ktpPerwakilan = src;
+                } else if (src.includes('/o/perwakilan%2Fktp%2F')) {
+                    ktpPerwakilan = src;
+                } else if (src.includes('/o/perwakilan%2Fswafoto%2F')) {
+                    swafoto = src;
                 }
-                if (src.includes('/o/ktp_penerima%2F')) images.ktpPemilik = src;
-                if (src.includes('/o/dokumen_lain%2F')) images.kartuKeluarga = src;
-                if (src.includes('/o/penjualan%2Fktp%2F')) images.ktpPembeliKelompok = src;
-                if (src.includes('/o/perwakilan%2Fktp%2F')) images.ktpPerwakilan = src;
-                if (src.includes('/o/perwakilan%2Fswafoto%2F')) images.swafoto = src;
             }
         });
 
-        // Tangkap juga Tanda Tangan Petani jika ada di dalam gambar
-        let tandaTanganPetani = '';
-        $('img').each((_, img) => {
-            let src = $(img).attr('src');
-            if (src && src.includes('TANDA_TANGAN_PETANI')) {
-                tandaTanganPetani = src;
+        // Cek jika ada Surat Kuasa berupa file PDF di tag iframe
+        $('iframe').each((_, iframe) => {
+            let src = $(iframe).attr('src');
+            if (src && src.includes('firebasestorage.googleapis.com') && src.includes('.pdf')) {
+                suratKuasaPdf = src;
             }
         });
 
@@ -123,14 +135,14 @@ app.get('/api/get-nota', async (req, res) => {
                 jenisPenyaluran: jenisPenyaluran !== '-' ? jenisPenyaluran : 'IPubers Individu'
             },
             images: {
-                ktpPembeli: images.ktpPembeli || '',
-                buktiPenyaluran: images.buktiPenyaluran || '',
-                tandaTanganPetani: tandaTanganPetani || '',
-                ktpPemilik: images.ktpPemilik || '',
-                kartuKeluarga: images.kartuKeluarga || '',
-                ktpPembeliKelompok: images.ktpPembeliKelompok || '',
-                ktpPerwakilan: images.ktpPerwakilan || '',
-                swafoto: images.swafoto || ''
+                ktpPembeli: ktpPembeli,
+                buktiPenyaluran: buktiPenyaluran,
+                tandaTanganPetani: tandaTanganPetani,
+                ktpPerwakilan: ktpPerwakilan,
+                ktpPemilik: ktpPemilik,
+                kartuKeluarga: kartuKeluarga,
+                swafoto: swafoto,
+                suratKuasaPdf: suratKuasaPdf
             }
         };
 
