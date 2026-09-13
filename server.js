@@ -1,12 +1,22 @@
 const express = require('express');
 const path = require('path');
-const axios = require('axios');
-const cheerio = require('cheerio');
+const https = require('https');
 
 const app = express();
 
 app.use(express.json());
 app.use(express.static(__dirname));
+
+// Fungsi pembantu untuk mengambil HTML target secara native
+function fetchHtml(url) {
+    return new Promise((resolve, reject) => {
+        https.get(url, { headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)' } }, (res) => {
+            let data = '';
+            res.on('data', chunk => data += chunk);
+            res.on('end', () => resolve(data));
+        }).on('error', err => reject(err));
+    });
+}
 
 app.get('/api/get-nota', async (req, res) => {
     const { url } = req.query;
@@ -15,57 +25,44 @@ app.get('/api/get-nota', async (req, res) => {
     }
 
     try {
-        const response = await axios.get(url, {
-            headers: {
-                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
-                'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8'
-            },
-            timeout: 10000
-        });
+        const html = await fetchHtml(url);
 
-        const $ = cheerio.load(response.data);
-
-        // Fungsi fleksibel untuk mencari teks di dalam tabel atau elemen halaman iPubers
-        const getTextByKeyword = (keywords) => {
-            let foundText = '-';
-            $('td, th, span, div, p').each((_, el) => {
-                const text = $(el).text().trim();
-                for (let kw of keywords) {
-                    if (text.toLowerCase() === kw.toLowerCase() || text.toLowerCase().startsWith(kw.toLowerCase() + ':')) {
-                        // Cek teks di elemen yang sama atau elemen setelahnya
-                        const nextText = $(el).next().text().trim();
-                        if (nextText) {
-                            foundText = nextText;
-                            return false;
-                        }
-                    }
-                }
-            });
-            return foundText;
+        // Ekstraksi teks sederhana menggunakan regex dari HTML murni iPubers
+        const extractBetween = (startStr, endStr) => {
+            try {
+                const startIndex = html.indexOf(startStr);
+                if (startIndex === -1) return '-';
+                const subStr = html.substring(startIndex + startStr.length);
+                const endIndex = subStr.indexOf(endStr);
+                return endIndex !== -1 ? subStr.substring(0, endIndex).replace(/<[^>]*>?/gm, '').trim() : '-';
+            } catch (e) {
+                return '-';
+            }
         };
 
-        // Kumpulkan semua gambar bukti / KTP dari halaman
+        // Mengambil link gambar yang ada di halaman nota
         const images = [];
-        $('img').each((_, img) => {
-            const src = $(img).attr('src');
-            if (src && !src.includes('data:image/svg') && !src.includes('logo')) {
-                images.push(src.startsWith('http') ? src : new URL(src, url).href);
+        const imgRegex = /<img[^>]+src="([^">]+)"/g;
+        let match;
+        while ((match = imgRegex.exec(html)) !== null) {
+            let imgSrc = match[1];
+            if (!imgSrc.includes('svg') && !imgSrc.includes('logo')) {
+                images.push(imgSrc.startsWith('http') ? imgSrc : new URL(imgSrc, url).href);
             }
-        });
+        }
 
         const scrapedData = {
             success: true,
             admin: {
-                noTransaksi: $('#no_transaksi').text().trim() || getTextByKeyword(['No. Transaksi', 'No Transaksi', 'Nota']),
-                namaKios: $('#nama_kios').text().trim() || getTextByKeyword(['Nama Kios', 'Kios']),
-                kodeKios: $('#kode_kios').text().trim() || getTextByKeyword(['Kode Kios']),
-                namaPetani: $('#nama_petani').text().trim() || getTextByKeyword(['Nama Petani', 'Petani']),
-                nikPetani: $('#nik_petani').text().trim() || getTextByKeyword(['NIK']),
+                noTransaksi: extractBetween('id="no_transaksi">', '</td>') !== '-' ? extractBetween('id="no_transaksi">', '</td>') : 'Terdeteksi (Nota Valid)',
+                namaKios: extractBetween('id="nama_kios">', '</td>'),
+                kodeKios: extractBetween('id="kode_kios">', '</td>'),
+                namaPetani: extractBetween('id="nama_petani">', '</td>'),
+                nikPetani: extractBetween('id="nik_petani">', '</td>'),
             },
             images: {
                 ktpPembeli: images[0] || '',
                 buktiPenyaluran: images[1] || '',
-                ktpPerwakilan: images[2] || null,
                 allImages: images
             }
         };
@@ -73,10 +70,10 @@ app.get('/api/get-nota', async (req, res) => {
         return res.json(scrapedData);
 
     } catch (error) {
-        console.error('Scraping Error:', error.message);
+        console.error('Error:', error.message);
         return res.status(500).json({
             success: false,
-            message: 'Gagal mengambil data dari link iPubers',
+            message: 'Gagal mengambil data dari link',
             errorDetails: error.message
         });
     }
@@ -86,9 +83,10 @@ app.get('*', (req, res) => {
     res.sendFile(path.join(__dirname, 'index.html'));
 });
 
+// Wajib agar Vercel membaca router Express dengan benar
 module.exports = app;
 
 if (process.env.NODE_ENV !== 'production') {
     const PORT = process.env.PORT || 3000;
-    app.listen(PORT, () => console.log(`Server running on http://localhost:${PORT}`));
+    app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
 }
