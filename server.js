@@ -1,15 +1,15 @@
 const express = require('express');
-const puppeteer = require('puppeteer');
 const path = require('path');
+const puppeteer = require('puppeteer-core');
+const chromium = require('@sparticuz/chromium');
 
 const app = express();
-const PORT = process.env.PORT || 3000;
 
 // Servis file statis dari folder public
 app.use(express.static(path.join(__dirname, 'public')));
 app.use(express.json());
 
-// API Endpoint untuk mengambil data nota via Puppeteer
+// API Endpoint untuk scraping nota
 app.get('/api/get-nota', async (req, res) => {
     const { url } = req.query;
     if (!url) {
@@ -18,22 +18,18 @@ app.get('/api/get-nota', async (req, res) => {
 
     let browser;
     try {
-        // Inisialisasi Puppeteer dengan opsi argumen yang aman untuk Cloud Deploy (Render/Heroku/Vercel)
+        // Mode Chromium Serverless khusus Vercel
         browser = await puppeteer.launch({
-            headless: 'new',
-            args: [
-                '--no-sandbox',
-                '--disable-setuid-sandbox',
-                '--disable-dev-shm-usage',
-                '--single-process',
-                '--no-zygote'
-            ]
+            args: chromium.args,
+            defaultViewport: chromium.defaultViewport,
+            executablePath: await chromium.executablePath(),
+            headless: chromium.headless,
         });
 
         const page = await browser.newPage();
         await page.goto(url, { waitUntil: 'networkidle2', timeout: 30000 });
 
-        // Evaluasi data dari halaman target (sesuaikan selector jika diperlukan)
+        // Evaluasi data dari halaman target
         const scrapedData = await page.evaluate(() => {
             const getText = (selector) => {
                 const el = document.querySelector(selector);
@@ -80,6 +76,10 @@ app.get('*', (req, res) => {
     res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
 
-app.listen(PORT, () => {
-    console.log(`Server Web App berjalan di port http://localhost:${PORT}`);
-});
+// Eksport app untuk Vercel Serverless
+module.exports = app;
+
+if (process.env.NODE_ENV !== 'production') {
+    const PORT = process.env.PORT || 3000;
+    app.listen(PORT, () => console.log(`Server berjalan di http://localhost:${PORT}`));
+}
