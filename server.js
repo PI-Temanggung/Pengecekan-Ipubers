@@ -8,10 +8,9 @@ const app = express();
 app.use(express.json());
 app.use(express.static(__dirname));
 
-// Fungsi pembantu untuk mengambil HTML target secara native
 function fetchHtml(url) {
     return new Promise((resolve, reject) => {
-        https.get(url, { headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)' } }, (res) => {
+        https.get(url, { headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36' } }, (res) => {
             let data = '';
             res.on('data', chunk => data += chunk);
             res.on('end', () => resolve(data));
@@ -29,38 +28,31 @@ app.get('/api/get-nota', async (req, res) => {
         const html = await fetchHtml(url);
         const $ = cheerio.load(html);
 
-        // Fungsi pintar untuk mencari teks berdasarkan kata kunci di dalam label / tabel iPubers
-        const findTextByLabel = (keywords) => {
-            let result = '-';
+        const findByText = (label) => {
+            let found = '-';
             $('*').each((_, el) => {
                 const text = $(el).text().trim();
-                for (let kw of keywords) {
-                    if (text.toLowerCase() === kw.toLowerCase()) {
-                        // Cek teks di elemen setelahnya atau di dalam elemen itu sendiri
-                        const nextText = $(el).next().text().trim();
-                        const parentNextText = $(el).parent().find('td, span, div, b').last().text().trim();
-                        
-                        if (nextText && nextText !== text) {
-                            result = nextText;
-                            return false;
-                        } else if (parentNextText && parentNextText !== text) {
-                            result = parentNextText;
-                            return false;
-                        }
+                if (text.toLowerCase() === label.toLowerCase()) {
+                    const sibling = $(el).next().text().trim();
+                    const parentText = $(el).parent().text().replace(text, '').trim();
+                    if (sibling && sibling !== '-') {
+                        found = sibling;
+                        return false;
+                    } else if (parentText) {
+                        found = parentText.replace(':', '').trim();
+                        return false;
                     }
                 }
             });
-            return result !== '-' ? result : '';
+            return found;
         };
 
-        // Ekstraksi data administratif dengan berbagai variasi kata kunci iPubers
-        const noTransaksi = $('#no_transaksi').text().trim() || findTextByLabel(['No. Transaksi', 'Nomor Transaksi', 'No Transaksi']) || 'Nota Valid';
-        const namaKios = $('#nama_kios').text().trim() || findTextByLabel(['Nama Kios', 'Kios']);
-        const kodeKios = $('#kode_kios').text().trim() || findTextByLabel(['Kode Kios', 'ID Kios']);
-        const namaPetani = $('#nama_petani').text().trim() || findTextByLabel(['Nama Petani', 'Petani', 'Nama Pembeli']);
-        const nikPetani = $('#nik_petani').text().trim() || findTextByLabel(['NIK', 'NIK Petani']);
+        const noTransaksi = $('#no_transaksi').text().trim() || findByText('No Transaksi') || 'Valid';
+        const namaKios = $('#nama_kios').text().trim() || findByText('Nama Kios');
+        const kodeKios = $('#kode_kios').text().trim() || findByText('Kode Kios');
+        const namaPetani = $('#nama_petani').text().trim() || findByText('Nama Petani');
+        const nikPetani = $('#nik_petani').text().trim() || findByText('NIK');
 
-        // Mengambil seluruh tautan gambar yang ada di halaman nota
         const images = [];
         $('img').each((_, img) => {
             let src = $(img).attr('src');
@@ -72,11 +64,11 @@ app.get('/api/get-nota', async (req, res) => {
         const scrapedData = {
             success: true,
             admin: {
-                noTransaksi: noTransaksi,
-                namaKios: namaKios,
-                kodeKios: kodeKios,
-                namaPetani: namaPetani,
-                nikPetani: nikPetani,
+                noTransaksi: noTransaksi !== '-' ? noTransaksi : 'Nota Berhasil Diakses',
+                namaKios: namaKios !== '-' ? namaKios : '-',
+                kodeKios: kodeKios !== '-' ? kodeKios : '-',
+                namaPetani: namaPetani !== '-' ? namaPetani : '-',
+                nikPetani: nikPetani !== '-' ? nikPetani : '-',
             },
             images: {
                 ktpPembeli: images[0] || '',
