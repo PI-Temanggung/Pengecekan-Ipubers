@@ -10,7 +10,7 @@ app.use(express.static(__dirname));
 
 function fetchHtml(url) {
     return new Promise((resolve, reject) => {
-        https.get(url, { headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36' } }, (res) => {
+        https.get(url, { headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36' } }, (res) => {
             let data = '';
             res.on('data', chunk => data += chunk);
             res.on('end', () => resolve(data));
@@ -28,46 +28,64 @@ app.get('/api/get-nota', async (req, res) => {
         const html = await fetchHtml(url);
         const $ = cheerio.load(html);
 
-        const findByText = (label) => {
-            let found = '-';
+        // Fungsi pintar untuk mencari teks berdasarkan label atau keyword di sekitarnya
+        const extractTextByKeyword = (keywords) => {
+            let result = '-';
             $('*').each((_, el) => {
                 const text = $(el).text().trim();
-                if (text.toLowerCase() === label.toLowerCase()) {
-                    const sibling = $(el).next().text().trim();
-                    const parentText = $(el).parent().text().replace(text, '').trim();
-                    if (sibling && sibling !== '-') {
-                        found = sibling;
-                        return false;
-                    } else if (parentText) {
-                        found = parentText.replace(':', '').trim();
-                        return false;
+                for (let kw of keywords) {
+                    if (text.toLowerCase().includes(kw.toLowerCase()) && text.length < 100) {
+                        // Cek apakah elemen ini sendiri adalah nilainya atau saudaranya
+                        const nextText = $(el).next().text().trim();
+                        const childrenText = $(el).children().text().trim();
+                        const pureText = text.replace(kw, '').replace(/[:\-]/g, '').trim();
+                        
+                        if (pureText && pureText.length > 2 && pureText.toLowerCase() !== kw.toLowerCase()) {
+                            result = pureText;
+                            return false;
+                        } else if (nextText && nextText.length > 0) {
+                            result = nextText;
+                            return false;
+                        }
                     }
                 }
             });
-            return found;
+            return result;
         };
 
-        const noTransaksi = $('#no_transaksi').text().trim() || findByText('No Transaksi') || 'Valid';
-        const namaKios = $('#nama_kios').text().trim() || findByText('Nama Kios');
-        const kodeKios = $('#kode_kios').text().trim() || findByText('Kode Kios');
-        const namaPetani = $('#nama_petani').text().trim() || findByText('Nama Petani');
-        const nikPetani = $('#nik_petani').text().trim() || findByText('NIK');
+        // Ambil data teks dengan berbagai kemungkinan nama label di iPubers
+        let noTransaksi = $('#no_transaksi').text().trim() || extractTextByKeyword(['no transaksi', 'nomor transaksi', 'transaksi']);
+        let namaKios = $('#nama_kios').text().trim() || extractTextByKeyword(['nama kios', 'kios']);
+        let kodeKios = $('#kode_kios').text().trim() || extractTextByKeyword(['kode kios']);
+        let namaPetani = $('#nama_petani').text().trim() || extractTextByKeyword(['nama petani', 'nama pembeli']);
+        let nikPetani = $('#nik_petani').text().trim() || extractTextByKeyword(['nik']);
 
+        // Ambil semua URL gambar yang ada di halaman
         const images = [];
         $('img').each((_, img) => {
-            let src = $(img).attr('src');
-            if (src && !src.includes('svg') && !src.includes('logo')) {
+            let src = $(img).attr('src') || $(img).attr('data-src');
+            if (src && !src.includes('svg') && !src.includes('logo') && !src.includes('icon')) {
                 images.push(src.startsWith('http') ? src : new URL(src, url).href);
+            }
+        });
+
+        // Jika gambar tidak ditemukan lewat tag <img>, cari di dalam background-image style
+        $('[style*="background"]').each((_, el) => {
+            const style = $(el).attr('style');
+            const match = style.match(/url\(['"]?(.*?)['"]?\)/);
+            if (match && match[1]) {
+                const bgUrl = match[1];
+                images.push(bgUrl.startsWith('http') ? bgUrl : new URL(bgUrl, url).href);
             }
         });
 
         const scrapedData = {
             success: true,
             admin: {
-                noTransaksi: noTransaksi !== '-' ? noTransaksi : 'Nota Berhasil Diakses',
-                namaKios: namaKios !== '-' ? namaKios : '-',
+                noTransaksi: noTransaksi !== '-' ? noTransaksi : 'Berhasil Diakses',
+                namaKios: namaKios !== '-' ? namaKios : 'Kios iPubers',
                 kodeKios: kodeKios !== '-' ? kodeKios : '-',
-                namaPetani: namaPetani !== '-' ? namaPetani : '-',
+                namaPetani: namaPetani !== '-' ? namaPetani : 'Data Tertera di Nota',
                 nikPetani: nikPetani !== '-' ? nikPetani : '-',
             },
             images: {
