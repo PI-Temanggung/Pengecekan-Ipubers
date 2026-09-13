@@ -8,7 +8,7 @@ const app = express();
 // 1. Middleware dasar
 app.use(express.json());
 
-// 2. Servis file statis langsung dari root folder (tempat index.html & manifest.json berada)
+// 2. Servis file statis dari root folder
 app.use(express.static(__dirname));
 
 // 3. API Endpoint untuk scraping nota iPubers
@@ -20,18 +20,41 @@ app.get('/api/get-nota', async (req, res) => {
 
     let browser;
     try {
-        // Konfigurasi Puppeteer Core + Chromium Serverless khusus Vercel
+        // Konfigurasi Puppeteer ringan & hemat memori untuk Vercel Serverless
         browser = await puppeteer.launch({
-            args: chromium.args,
+            args: [
+                ...chromium.args,
+                '--no-sandbox',
+                '--disable-setuid-sandbox',
+                '--disable-dev-shm-usage',
+                '--disable-accelerated-2d-canvas',
+                '--no-first-run',
+                '--no-zygote',
+                '--single-process',
+                '--disable-gpu'
+            ],
             defaultViewport: chromium.defaultViewport,
             executablePath: await chromium.executablePath(),
             headless: chromium.headless,
         });
 
         const page = await browser.newPage();
-        await page.goto(url, { waitUntil: 'networkidle2', timeout: 30000 });
 
-        // Scrape data dari elemen halaman web target
+        // Optimasi: Blokir CSS, font, dan elemen berat agar proses muat halaman jauh lebih cepat
+        await page.setRequestInterception(true);
+        page.on('request', (req) => {
+            const resourceType = req.resourceType();
+            if (['stylesheet', 'font', 'other'].includes(resourceType)) {
+                req.abort();
+            } else {
+                req.continue();
+            }
+        });
+
+        // Gunakan domcontentloaded dengan timeout 15 detik agar aman dari batas Vercel
+        await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 15000 });
+
+        // Scrape data dari halaman iPubers
         const scrapedData = await page.evaluate(() => {
             const getText = (selector) => {
                 const el = document.querySelector(selector);
@@ -73,16 +96,16 @@ app.get('/api/get-nota', async (req, res) => {
     }
 });
 
-// 4. Fallback Routing: Arahkan semua akses halaman web ke index.html di root
+// 4. Fallback Routing ke index.html
 app.get('*', (req, res) => {
     res.sendFile(path.join(__dirname, 'index.html'));
 });
 
-// 5. Export app untuk Vercel Serverless Function
+// 5. Export app untuk Vercel
 module.exports = app;
 
-// 6. Mode lokal (Server biasa saat dijalankan di komputer sendiri)
+// 6. Mode lokal
 if (process.env.NODE_ENV !== 'production') {
     const PORT = process.env.PORT || 3000;
-    app.listen(PORT, () => console.log(`Server berjalan di http://localhost:${PORT}`));
+    app.listen(PORT, () => console.log(`Server running on http://localhost:${PORT}`));
 }
