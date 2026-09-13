@@ -5,11 +5,13 @@ const chromium = require('@sparticuz/chromium');
 
 const app = express();
 
-// Servis file statis dari folder public
-app.use(express.static(path.join(__dirname, 'public')));
+// 1. Middleware dasar
 app.use(express.json());
 
-// API Endpoint untuk scraping nota
+// 2. Servis file statis langsung dari root folder (tempat index.html & manifest.json berada)
+app.use(express.static(__dirname));
+
+// 3. API Endpoint untuk scraping nota iPubers
 app.get('/api/get-nota', async (req, res) => {
     const { url } = req.query;
     if (!url) {
@@ -18,7 +20,7 @@ app.get('/api/get-nota', async (req, res) => {
 
     let browser;
     try {
-        // Mode Chromium Serverless khusus Vercel
+        // Konfigurasi Puppeteer Core + Chromium Serverless khusus Vercel
         browser = await puppeteer.launch({
             args: chromium.args,
             defaultViewport: chromium.defaultViewport,
@@ -29,7 +31,7 @@ app.get('/api/get-nota', async (req, res) => {
         const page = await browser.newPage();
         await page.goto(url, { waitUntil: 'networkidle2', timeout: 30000 });
 
-        // Evaluasi data dari halaman target
+        // Scrape data dari elemen halaman web target
         const scrapedData = await page.evaluate(() => {
             const getText = (selector) => {
                 const el = document.querySelector(selector);
@@ -71,14 +73,15 @@ app.get('/api/get-nota', async (req, res) => {
     }
 });
 
-// Fallback route ke index.html
+// 4. Fallback Routing: Arahkan semua akses halaman web ke index.html di root
 app.get('*', (req, res) => {
-    res.sendFile(path.join(__dirname, 'public', 'index.html'));
+    res.sendFile(path.join(__dirname, 'index.html'));
 });
 
-// Eksport app untuk Vercel Serverless
+// 5. Export app untuk Vercel Serverless Function
 module.exports = app;
 
+// 6. Mode lokal (Server biasa saat dijalankan di komputer sendiri)
 if (process.env.NODE_ENV !== 'production') {
     const PORT = process.env.PORT || 3000;
     app.listen(PORT, () => console.log(`Server berjalan di http://localhost:${PORT}`));
