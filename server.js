@@ -18,6 +18,19 @@ function fetchHtml(url) {
     });
 }
 
+// Endpoint Proxy Gambar agar aman dari CORS
+app.get('/api/proxy-image', (req, res) => {
+    const imageUrl = req.query.url;
+    if (!imageUrl) return res.status(400).send('URL gambar tidak ada');
+
+    https.get(imageUrl, { headers: { 'User-Agent': 'Mozilla/5.0' } }, (externalRes) => {
+        res.setHeader('Content-Type', externalRes.headers['content-type'] || 'image/jpeg');
+        externalRes.pipe(res);
+    }).on('error', () => {
+        res.status(500).send('Gagal memuat gambar');
+    });
+});
+
 app.get('/api/get-nota', async (req, res) => {
     const { url } = req.query;
     if (!url) {
@@ -28,62 +41,52 @@ app.get('/api/get-nota', async (req, res) => {
         const html = await fetchHtml(url);
         const $ = cheerio.load(html);
 
-        // 1. Nama Kios
+        // Ekstraksi teks umum dari elemen halaman
+        let bodyText = $('body').text();
+
+        // Cari informasi teks menggunakan pencarian fleksibel di seluruh body HTML
         let namaKios = '-';
-        $('div').each((_, el) => {
-            const text = $(el).text().trim();
-            if ($(el).css('font-size') === '19px' || text.length > 3 && !text.includes('Nota') && namaKios === '-') {
-                const fontText = $(el).find('font').text().trim();
-                if (fontText) namaKios = fontText;
-            }
-        });
-        if (namaKios === '-') {
-            $('b font font').each((_, el) => {
-                const t = $(el).text().trim();
-                if (t.includes('MANDIRI') || t.length > 5 && namaKios === '-') namaKios = t;
-            });
-        }
-
-        // 2. Kode Kios
         let kodeKios = '-';
-        $('font').each((_, el) => {
-            const t = $(el).text().trim();
-            if (t.startsWith('RT') && t.length >= 10) {
-                kodeKios = t;
-            }
-        });
-
-        // 3 & 4. Nama & NIK Petani dari Baris Tabel (tr)
         let namaPetani = '-';
         let nikPetani = '-';
         let noTransaksi = '-';
         let jenisPenyaluran = '-';
 
+        // Deteksi teks berdasarkan pola baris atau elemen HTML yang ada
+        $('div, td, span, p').each((_, el) => {
+            const t = $(el).text().trim();
+            
+            // Cari No Transaksi (biasanya mengandung format kode unik atau backslash)
+            if ((t.includes('\\') || t.includes('/')) && t.length < 30 && noTransaksi === '-') {
+                if (!t.includes('http') && !t.includes('www')) noTransaksi = t;
+            }
+            // Cari Kode Kios (biasanya diawali RT)
+            if (t.startsWith('RT') && t.length >= 10 && kodeKios === '-') {
+                kodeKios = t;
+            }
+        });
+
+        // Ambil data spesifik dari elemen tabel jika ada
         $('tr').each((_, tr) => {
             const rowText = $(tr).text();
             const tds = $(tr).find('td');
-            
-            if (rowText.includes('Nama Petani')) {
-                const val = $(tds[1]).text().trim();
-                if (val) namaPetani = val;
+            if (rowText.includes('Nama Petani') && tds.length > 1) {
+                namaPetani = $(tds[1]).text().trim() || namaPetani;
             }
-            if (rowText.includes('KTP Petani')) {
-                const val = $(tds[1]).text().trim();
-                if (val) nikPetani = val;
+            if (rowText.includes('KTP Petani') && tds.length > 1) {
+                nikPetani = $(tds[1]).text().trim() || nikPetani;
             }
         });
 
-        // 5. Kode Transaksi & Jenis Penyaluran
-        $('.f-20.f-bold.align-right, td.f-20').each((_, el) => {
-            const t = $(el).text().trim();
-            if (t.includes('\\') || t.includes('/')) {
-                noTransaksi = t;
-            } else if (t.includes('IPubers')) {
-                jenisPenyaluran = t;
-            }
-        });
+        // Fallback pencarian teks jika tabel tidak tertangkap terstruktur
+        if (namaPetani === '-') {
+            // Coba ambil dari teks berlabel di dalam body jika ada pola tertentu
+            const regexNama = /Nama Petani[:\s]+([A-Z\s]+)/i;
+            const matchNama = bodyText.match(regexNama);
+            if (matchNama) namaPetani = matchNama[1].trim();
+        }
 
-        // 6. Pengumpulan URL Gambar dan Dokumen dari Firebase berdasarkan tipe linknya
+        // Pengumpulan URL Gambar dari tag <img> atau atribut di dalam HTML
         let ktpPembeli = '';
         let buktiPenyaluran = '';
         let tandaTanganPetani = '';
@@ -91,38 +94,48 @@ app.get('/api/get-nota', async (req, res) => {
         let ktpPemilik = '';
         let kartuKeluarga = '';
         let swafoto = '';
-        let suratKuasaPdf = '';
 
+        // Cek semua tag img
         $('img').each((_, img) => {
-            let src = $(img).attr('src');
+            let src = $(img).attr('src') || $(img.attribs).attr('data-src');
             if (src && src.includes('firebasestorage.googleapis.com')) {
+                const proxySrc = `/api/proxy-image?url=${encodeURIComponent(src)}`;
+
                 if (src.includes('TANDA_TANGAN_PETANI')) {
-                    tandaTanganPetani = src;
+                    tandaTanganPetani = proxySrc;
                 } else if (src.includes('/o/ktp%2F')) {
-                    ktpPembeli = src;
+                    ktpPembeli = proxySrc;
                 } else if (src.includes('/o/petani_barang%2F')) {
-                    if (!buktiPenyaluran) buktiPenyaluran = src;
+                    if (!buktiPenyaluran) buktiPenyaluran = proxySrc;
                 } else if (src.includes('/o/ktp_penerima%2F')) {
-                    ktpPemilik = src;
+                    ktpPemilik = proxySrc;
                 } else if (src.includes('/o/dokumen_lain%2F')) {
-                    kartuKeluarga = src;
-                } else if (src.includes('/o/penjualan%2Fktp%2F')) {
-                    ktpPerwakilan = src;
-                } else if (src.includes('/o/perwakilan%2Fktp%2F')) {
-                    ktpPerwakilan = src;
+                    kartuKeluarga = proxySrc;
+                } else if (src.includes('/o/penjualan%2Fktp%2F') || src.includes('/o/perwakilan%2Fktp%2F')) {
+                    ktpPerwakilan = proxySrc;
                 } else if (src.includes('/o/perwakilan%2Fswafoto%2F')) {
-                    swafoto = src;
+                    swafoto = proxySrc;
+                } else if (!ktpPembeli) {
+                    ktpPembeli = proxySrc; // Default tangkapan gambar pertama jika tidak cocok pola
                 }
             }
         });
 
-        // Cek jika ada Surat Kuasa berupa file PDF di tag iframe
-        $('iframe').each((_, iframe) => {
-            let src = $(iframe).attr('src');
-            if (src && src.includes('firebasestorage.googleapis.com') && src.includes('.pdf')) {
-                suratKuasaPdf = src;
+        // Jika gambar tidak ditemukan lewat tag <img> standar, cari di seluruh string HTML (antisipasi link firebase tertanam dalam script json)
+        if (!ktpPembeli || !buktiPenyaluran) {
+            const regexFirebase = /https:\/\/firebasestorage\.googleapis\.com\/v0\/b\/[^"'\s]+/g;
+            const matches = html.match(regexFirebase);
+            if (matches && matches.length > 0) {
+                // Bersihkan URL dari karakter escape unicode jika ada
+                matches.forEach(rawUrl => {
+                    const cleanUrl = rawUrl.replace(/\\u0026/g, '&');
+                    const proxySrc = `/api/proxy-image?url=${encodeURIComponent(cleanUrl)}`;
+                    
+                    if (cleanUrl.includes('ktp') && !ktpPembeli) ktpPembeli = proxySrc;
+                    else if (cleanUrl.includes('petani_barang') && !buktiPenyaluran) buktiPenyaluran = proxySrc;
+                });
             }
-        });
+        }
 
         const scrapedData = {
             success: true,
@@ -135,14 +148,13 @@ app.get('/api/get-nota', async (req, res) => {
                 jenisPenyaluran: jenisPenyaluran !== '-' ? jenisPenyaluran : 'IPubers Individu'
             },
             images: {
-                ktpPembeli: ktpPembeli,
-                buktiPenyaluran: buktiPenyaluran,
-                tandaTanganPetani: tandaTanganPetani,
-                ktpPerwakilan: ktpPerwakilan,
-                ktpPemilik: ktpPemilik,
-                kartuKeluarga: kartuKeluarga,
-                swafoto: swafoto,
-                suratKuasaPdf: suratKuasaPdf
+                ktpPembeli: ktpPembeli || 'https://via.placeholder.com/300?text=Tidak+Ada+Foto+KTP',
+                buktiPenyaluran: buktiPenyaluran || 'https://via.placeholder.com/300?text=Tidak+Ada+Bukti+Penyaluran',
+                tandaTanganPetani,
+                ktpPerwakilan,
+                ktpPemilik,
+                kartuKeluarga,
+                swafoto
             }
         };
 
