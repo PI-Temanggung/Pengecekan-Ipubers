@@ -266,6 +266,7 @@
             <button class="btn-nav btn-next" onclick="nextItem()">Lanjutkan &raquo;</button>
         </div>
 
+        <!-- Grid 1: Data Admin, KTP Pembeli, Bukti Penyaluran -->
         <div class="grid-3 hidden" id="mainGrid">
             <div class="card card-admin">
                 <div class="card-header header-admin">Data Administrasi</div>
@@ -293,18 +294,6 @@
                         <div class="data-label">NIK Petani</div>
                         <div class="data-value" id="txtNikPetani">-</div>
                     </div>
-
-                    <div id="perwakilanSection" class="hidden">
-                        <div class="divider"></div>
-                        <div class="data-group">
-                            <div class="data-label">Nama Perwakilan</div>
-                            <div class="data-value" id="txtNamaPerwakilan">-</div>
-                        </div>
-                        <div class="data-group">
-                            <div class="data-label">NIK Perwakilan</div>
-                            <div class="data-value" id="txtNikPerwakilan">-</div>
-                        </div>
-                    </div>
                 </div>
             </div>
 
@@ -327,19 +316,41 @@
             </div>
         </div>
 
+        <!-- Grid 2: Foto Tambahan (Tanda Tangan, KTP Perwakilan, Swafoto, dll) -->
         <div class="grid-2 hidden" id="secondaryGrid">
-            <div class="card hidden" id="cardKtpPemilik">
-                <div class="card-header header-photo">KTP Pemilik (Perwakilan)</div>
+            <div class="card hidden" id="cardTandaTangan">
+                <div class="card-header header-photo">Tanda Tangan Petani</div>
                 <div class="card-body">
                     <div class="media-box">
-                        <img id="imgKtpPemilik" src="" alt="KTP Pemilik/Perwakilan">
+                        <img id="imgTandaTangan" src="" alt="Tanda Tangan Petani">
+                    </div>
+                </div>
+            </div>
+
+            <div class="card hidden" id="cardKtpPerwakilan">
+                <div class="card-header header-photo">KTP Perwakilan / Kelompok</div>
+                <div class="card-body">
+                    <div class="media-box">
+                        <img id="imgKtpPerwakilan" src="" alt="KTP Perwakilan">
+                    </div>
+                </div>
+            </div>
+
+            <div class="card hidden" id="cardSwafoto">
+                <div class="card-header header-photo">Swafoto Perwakilan</div>
+                <div class="card-body">
+                    <div class="media-box">
+                        <img id="imgSwafoto" src="" alt="Swafoto">
                     </div>
                 </div>
             </div>
 
             <div class="card hidden" id="cardDokLain">
-                <div class="card-header header-photo">Dokumentasi Lain</div>
+                <div class="card-header header-photo">Dokumen Lain / Kartu Keluarga</div>
                 <div class="card-body" id="dokLainContainer">
+                    <div class="media-box">
+                        <img id="imgKartuKeluarga" src="" alt="Kartu Keluarga">
+                    </div>
                 </div>
             </div>
         </div>
@@ -391,51 +402,49 @@
             const data = notaList[currentIndex];
             document.getElementById('pageCounter').innerText = `${currentIndex + 1} / ${notaList.length}`;
 
+            // Data Administrasi
             document.getElementById('txtNoTx').innerText = data.admin.noTransaksi;
             document.getElementById('txtNamaKios').innerText = data.admin.namaKios;
             document.getElementById('txtKodeKios').innerText = data.admin.kodeKios;
             document.getElementById('txtNamaPetani').innerText = data.admin.namaPetani;
             document.getElementById('txtNikPetani').innerText = data.admin.nikPetani;
 
-            const perwakilanSection = document.getElementById('perwakilanSection');
-            if (data.admin.namaPerwakilan || data.admin.nikPerwakilan) {
-                perwakilanSection.classList.remove('hidden');
-                document.getElementById('txtNamaPerwakilan').innerText = data.admin.namaPerwakilan || '-';
-                document.getElementById('txtNikPerwakilan').innerText = data.admin.nikPerwakilan || '-';
-            } else {
-                perwakilanSection.classList.add('hidden');
-            }
-
+            // Foto Utama
             document.getElementById('imgKtp').src = data.images.ktpPembeli || '';
             document.getElementById('imgPetani').src = data.images.buktiPenyaluran || '';
 
-            const cardKtpPemilik = document.getElementById('cardKtpPemilik');
-            if (data.images.ktpPerwakilan) {
-                cardKtpPemilik.classList.remove('hidden');
-                document.getElementById('imgKtpPemilik').src = data.images.ktpPerwakilan;
+            // Foto Tanda Tangan
+            const cardTandaTangan = document.getElementById('cardTandaTangan');
+            if (data.images.tandaTanganPetani) {
+                cardTandaTangan.classList.remove('hidden');
+                document.getElementById('imgTandaTangan').src = data.images.tandaTanganPetani;
             } else {
-                cardKtpPemilik.classList.add('hidden');
+                cardTandaTangan.classList.add('hidden');
             }
 
+            // KTP Perwakilan
+            const cardKtpPerwakilan = document.getElementById('cardKtpPerwakilan');
+            if (data.images.ktpPerwakilan) {
+                cardKtpPerwakilan.classList.remove('hidden');
+                document.getElementById('imgKtpPerwakilan').src = data.images.ktpPerwakilan;
+            } else {
+                cardKtpPerwakilan.classList.add('hidden');
+            }
+
+            // Swafoto
+            const cardSwafoto = document.getElementById('cardSwafoto');
+            if (data.images.swafoto) {
+                cardSwafoto.classList.remove('hidden');
+                document.getElementById('imgSwafoto').src = data.images.swafoto;
+            } else {
+                cardSwafoto.classList.add('hidden');
+            }
+
+            // Kartu Keluarga / Dokumen Lain
             const cardDokLain = document.getElementById('cardDokLain');
-            const dokContainer = document.getElementById('dokLainContainer');
-            dokContainer.innerHTML = '';
-            let hasDok = false;
-
-            if (data.images.suratKuasaPdf) {
-                hasDok = true;
-                dokContainer.innerHTML += `<iframe src="${data.images.suratKuasaPdf}"></iframe>`;
-            }
-
-            if (data.images.dokLain && data.images.dokLain.length > 0) {
-                hasDok = true;
-                data.images.dokLain.forEach(imgUrl => {
-                    dokContainer.innerHTML += `<div class="media-box" style="margin-top:10px;"><img src="${imgUrl}"></div>`;
-                });
-            }
-
-            if (hasDok) {
+            if (data.images.kartuKeluarga) {
                 cardDokLain.classList.remove('hidden');
+                document.getElementById('imgKartuKeluarga').src = data.images.kartuKeluarga;
             } else {
                 cardDokLain.classList.add('hidden');
             }
