@@ -41,10 +41,7 @@ app.get('/api/get-nota', async (req, res) => {
         const html = await fetchHtml(url);
         const $ = cheerio.load(html);
 
-        // Ekstraksi teks umum dari elemen halaman
         let bodyText = $('body').text();
-
-        // Cari informasi teks menggunakan pencarian fleksibel di seluruh body HTML
         let namaKios = '-';
         let kodeKios = '-';
         let namaPetani = '-';
@@ -52,21 +49,16 @@ app.get('/api/get-nota', async (req, res) => {
         let noTransaksi = '-';
         let jenisPenyaluran = '-';
 
-        // Deteksi teks berdasarkan pola baris atau elemen HTML yang ada
         $('div, td, span, p').each((_, el) => {
             const t = $(el).text().trim();
-            
-            // Cari No Transaksi (biasanya mengandung format kode unik atau backslash)
             if ((t.includes('\\') || t.includes('/')) && t.length < 30 && noTransaksi === '-') {
                 if (!t.includes('http') && !t.includes('www')) noTransaksi = t;
             }
-            // Cari Kode Kios (biasanya diawali RT)
             if (t.startsWith('RT') && t.length >= 10 && kodeKios === '-') {
                 kodeKios = t;
             }
         });
 
-        // Ambil data spesifik dari elemen tabel jika ada
         $('tr').each((_, tr) => {
             const rowText = $(tr).text();
             const tds = $(tr).find('td');
@@ -78,15 +70,12 @@ app.get('/api/get-nota', async (req, res) => {
             }
         });
 
-        // Fallback pencarian teks jika tabel tidak tertangkap terstruktur
         if (namaPetani === '-') {
-            // Coba ambil dari teks berlabel di dalam body jika ada pola tertentu
             const regexNama = /Nama Petani[:\s]+([A-Z\s]+)/i;
             const matchNama = bodyText.match(regexNama);
             if (matchNama) namaPetani = matchNama[1].trim();
         }
 
-        // Pengumpulan URL Gambar dari tag <img> atau atribut di dalam HTML
         let ktpPembeli = '';
         let buktiPenyaluran = '';
         let tandaTanganPetani = '';
@@ -95,46 +84,27 @@ app.get('/api/get-nota', async (req, res) => {
         let kartuKeluarga = '';
         let swafoto = '';
 
-        // Cek semua tag img
-        $('img').each((_, img) => {
-            let src = $(img).attr('src') || $(img.attribs).attr('data-src');
-            if (src && src.includes('firebasestorage.googleapis.com')) {
-                const proxySrc = `/api/proxy-image?url=${encodeURIComponent(src)}`;
-
-                if (src.includes('TANDA_TANGAN_PETANI')) {
-                    tandaTanganPetani = proxySrc;
-                } else if (src.includes('/o/ktp%2F')) {
+        // Ekstraksi langsung link Firebase dari tag HTML atau skrip mentah
+        const regexFirebase = /https:\/\/firebasestorage\.googleapis\.com\/v0\/b\/[^"'\s\)]+/g;
+        const matches = html.match(regexFirebase);
+        
+        if (matches && matches.length > 0) {
+            matches.forEach(rawUrl => {
+                const cleanUrl = rawUrl.replace(/\\u0026/g, '&').replace(/["'\\]/g, '');
+                const proxySrc = `/api/proxy-image?url=${encodeURIComponent(cleanUrl)}`;
+                
+                if ((cleanUrl.includes('ktp') || cleanUrl.includes('ktp_pembeli')) && !ktpPembeli) {
                     ktpPembeli = proxySrc;
-                } else if (src.includes('/o/petani_barang%2F')) {
-                    if (!buktiPenyaluran) buktiPenyaluran = proxySrc;
-                } else if (src.includes('/o/ktp_penerima%2F')) {
-                    ktpPemilik = proxySrc;
-                } else if (src.includes('/o/dokumen_lain%2F')) {
-                    kartuKeluarga = proxySrc;
-                } else if (src.includes('/o/penjualan%2Fktp%2F') || src.includes('/o/perwakilan%2Fktp%2F')) {
+                } else if ((cleanUrl.includes('petani_barang') || cleanUrl.includes('penyaluran') || cleanUrl.includes('barang')) && !buktiPenyaluran) {
+                    buktiPenyaluran = proxySrc;
+                } else if (cleanUrl.includes('TANDA_TANGAN') && !tandaTanganPetani) {
+                    tandaTanganPetani = proxySrc;
+                } else if ((cleanUrl.includes('perwakilan') || cleanUrl.includes('kelompok')) && !ktpPerwakilan) {
                     ktpPerwakilan = proxySrc;
-                } else if (src.includes('/o/perwakilan%2Fswafoto%2F')) {
+                } else if (cleanUrl.includes('swafoto') && !swafoto) {
                     swafoto = proxySrc;
-                } else if (!ktpPembeli) {
-                    ktpPembeli = proxySrc; // Default tangkapan gambar pertama jika tidak cocok pola
                 }
-            }
-        });
-
-        // Jika gambar tidak ditemukan lewat tag <img> standar, cari di seluruh string HTML (antisipasi link firebase tertanam dalam script json)
-        if (!ktpPembeli || !buktiPenyaluran) {
-            const regexFirebase = /https:\/\/firebasestorage\.googleapis\.com\/v0\/b\/[^"'\s]+/g;
-            const matches = html.match(regexFirebase);
-            if (matches && matches.length > 0) {
-                // Bersihkan URL dari karakter escape unicode jika ada
-                matches.forEach(rawUrl => {
-                    const cleanUrl = rawUrl.replace(/\\u0026/g, '&');
-                    const proxySrc = `/api/proxy-image?url=${encodeURIComponent(cleanUrl)}`;
-                    
-                    if (cleanUrl.includes('ktp') && !ktpPembeli) ktpPembeli = proxySrc;
-                    else if (cleanUrl.includes('petani_barang') && !buktiPenyaluran) buktiPenyaluran = proxySrc;
-                });
-            }
+            });
         }
 
         const scrapedData = {
@@ -148,13 +118,13 @@ app.get('/api/get-nota', async (req, res) => {
                 jenisPenyaluran: jenisPenyaluran !== '-' ? jenisPenyaluran : 'IPubers Individu'
             },
             images: {
-                ktpPembeli: ktpPembeli || 'https://via.placeholder.com/300?text=Tidak+Ada+Foto+KTP',
-                buktiPenyaluran: buktiPenyaluran || 'https://via.placeholder.com/300?text=Tidak+Ada+Bukti+Penyaluran',
-                tandaTanganPetani,
-                ktpPerwakilan,
-                ktpPemilik,
-                kartuKeluarga,
-                swafoto
+                ktpPembeli: ktpPembeli || '',
+                buktiPenyaluran: buktiPenyaluran || '',
+                tandaTanganPetani: tandaTanganPetani || '',
+                ktpPerwakilan: ktpPerwakilan || '',
+                ktpPemilik: ktpPemilik || '',
+                kartuKeluarga: kartuKeluarga || '',
+                swafoto: swafoto || ''
             }
         };
 
