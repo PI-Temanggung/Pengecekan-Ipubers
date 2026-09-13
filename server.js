@@ -1,6 +1,7 @@
 const express = require('express');
 const path = require('path');
 const https = require('https');
+const cheerio = require('cheerio');
 
 const app = express();
 
@@ -26,43 +27,60 @@ app.get('/api/get-nota', async (req, res) => {
 
     try {
         const html = await fetchHtml(url);
+        const $ = cheerio.load(html);
 
-        // Ekstraksi teks sederhana menggunakan regex dari HTML murni iPubers
-        const extractBetween = (startStr, endStr) => {
-            try {
-                const startIndex = html.indexOf(startStr);
-                if (startIndex === -1) return '-';
-                const subStr = html.substring(startIndex + startStr.length);
-                const endIndex = subStr.indexOf(endStr);
-                return endIndex !== -1 ? subStr.substring(0, endIndex).replace(/<[^>]*>?/gm, '').trim() : '-';
-            } catch (e) {
-                return '-';
-            }
+        // Fungsi pintar untuk mencari teks berdasarkan kata kunci di dalam label / tabel iPubers
+        const findTextByLabel = (keywords) => {
+            let result = '-';
+            $('*').each((_, el) => {
+                const text = $(el).text().trim();
+                for (let kw of keywords) {
+                    if (text.toLowerCase() === kw.toLowerCase()) {
+                        // Cek teks di elemen setelahnya atau di dalam elemen itu sendiri
+                        const nextText = $(el).next().text().trim();
+                        const parentNextText = $(el).parent().find('td, span, div, b').last().text().trim();
+                        
+                        if (nextText && nextText !== text) {
+                            result = nextText;
+                            return false;
+                        } else if (parentNextText && parentNextText !== text) {
+                            result = parentNextText;
+                            return false;
+                        }
+                    }
+                }
+            });
+            return result !== '-' ? result : '';
         };
 
-        // Mengambil link gambar yang ada di halaman nota
+        // Ekstraksi data administratif dengan berbagai variasi kata kunci iPubers
+        const noTransaksi = $('#no_transaksi').text().trim() || findTextByLabel(['No. Transaksi', 'Nomor Transaksi', 'No Transaksi']) || 'Nota Valid';
+        const namaKios = $('#nama_kios').text().trim() || findTextByLabel(['Nama Kios', 'Kios']);
+        const kodeKios = $('#kode_kios').text().trim() || findTextByLabel(['Kode Kios', 'ID Kios']);
+        const namaPetani = $('#nama_petani').text().trim() || findTextByLabel(['Nama Petani', 'Petani', 'Nama Pembeli']);
+        const nikPetani = $('#nik_petani').text().trim() || findTextByLabel(['NIK', 'NIK Petani']);
+
+        // Mengambil seluruh tautan gambar yang ada di halaman nota
         const images = [];
-        const imgRegex = /<img[^>]+src="([^">]+)"/g;
-        let match;
-        while ((match = imgRegex.exec(html)) !== null) {
-            let imgSrc = match[1];
-            if (!imgSrc.includes('svg') && !imgSrc.includes('logo')) {
-                images.push(imgSrc.startsWith('http') ? imgSrc : new URL(imgSrc, url).href);
+        $('img').each((_, img) => {
+            let src = $(img).attr('src');
+            if (src && !src.includes('svg') && !src.includes('logo')) {
+                images.push(src.startsWith('http') ? src : new URL(src, url).href);
             }
-        }
+        });
 
         const scrapedData = {
             success: true,
             admin: {
-                noTransaksi: extractBetween('id="no_transaksi">', '</td>') !== '-' ? extractBetween('id="no_transaksi">', '</td>') : 'Terdeteksi (Nota Valid)',
-                namaKios: extractBetween('id="nama_kios">', '</td>'),
-                kodeKios: extractBetween('id="kode_kios">', '</td>'),
-                namaPetani: extractBetween('id="nama_petani">', '</td>'),
-                nikPetani: extractBetween('id="nik_petani">', '</td>'),
+                noTransaksi: noTransaksi,
+                namaKios: namaKios,
+                kodeKios: kodeKios,
+                namaPetani: namaPetani,
+                nikPetani: nikPetani,
             },
             images: {
                 ktpPembeli: images[0] || '',
-                buktiPenyaluran: images[1] || '',
+                buktiPenyaluran: images[1] || images[0] || '',
                 allImages: images
             }
         };
@@ -83,7 +101,6 @@ app.get('*', (req, res) => {
     res.sendFile(path.join(__dirname, 'index.html'));
 });
 
-// Wajib agar Vercel membaca router Express dengan benar
 module.exports = app;
 
 if (process.env.NODE_ENV !== 'production') {
